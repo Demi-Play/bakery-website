@@ -2,3 +2,4 @@ Flask
 Flask-SQLAlchemy
 Flask-Migrate
 Flask-WTF
+email_validator

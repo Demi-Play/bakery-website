@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="container mt-5">
+        <h2>Изменение роли пользователя: {{ user.username }}</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label for="role">Выберите новую роль:</label>
+                <select class="form-control" id="role" name="role">
+                    <option value="user" {% if user.role == 'user' %}selected{% endif %}>Пользователь</option>
+                    <option value="moderator" {% if user.role == 'moderator' %}selected{% endif %}>Модератор</option>
+                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Администратор</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Изменить роль</button>
+            <a href="{{ url_for('main.admin_panel') }}" class="btn btn-secondary mt-3">Отмена</a>
+        </form>
+    </div>
+{% endblock %}
