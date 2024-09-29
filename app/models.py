@@ -28,10 +28,12 @@ class Product(db.Model):
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Float, nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
+    image_path = db.Column(db.String(200), nullable=True)  # Новое поле для изображения
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
         return f'<Product {self.name}>'
+
 
 class Cart(db.Model):
     id = db.Column(db.Integer, primary_key=True)

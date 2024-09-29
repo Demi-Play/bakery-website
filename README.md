@@ -1,5 +1,10 @@
 # bakery-website
  
+
+£ venv
+venv\Scripts\activate
+
+
 @migrations
 rm -rf migrations/versions/*
 flask db init

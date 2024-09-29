@@ -252,6 +252,9 @@ def delete_user(user_id):
 
     return redirect(url_for('admin'))
 
+import shutil
+import os
+
 # Создание товара
 @bp.route('/admin/product/create', methods=['GET', 'POST'])
 @login_required
@@ -262,9 +265,17 @@ def create_product():
         name = form.name.data
         description = form.description.data
         price = form.price.data
+        image = form.image.data
         category_id = request.form.get('category_id')
 
-        product = Product(name=name, description=description, price=price, category_id=category_id)
+        # Сохранение изображения
+        # if image:
+        #     image_filename = os.path.basename(image)
+        #     image_path = os.path.join('media', image_filename)
+        #     shutil.copy(image, image_path)
+        #     image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
+
+        product = Product(name=name, description=description, price=price, image_path=image, category_id=category_id)
         db.session.add(product)
         db.session.commit()
         flash('Товар успешно создан.')
@@ -275,6 +286,7 @@ def create_product():
 
     categories = Category.query.all()
     return render_template('create_product.html', form=form, categories=categories)
+
 
 # Редактирование товара
 @bp.route('/admin/product/<int:product_id>/edit', methods=['GET', 'POST'])
@@ -287,7 +299,16 @@ def edit_product(product_id):
         product.name = form.name.data
         product.description = form.description.data
         product.price = form.price.data
+        product.image = form.image.data
         product.category_id = request.form.get('category_id')
+
+        # Сохранение изображения
+        if product.image:
+            image_filename = os.path.basename(product.image)
+            image_path = os.path.join('media', image_filename)
+            shutil.copy(product.image, image_path)
+            image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
+        product.image = image_db_path
 
         db.session.commit()
         flash('Товар успешно обновлен.')

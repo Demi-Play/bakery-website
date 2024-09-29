@@ -20,6 +20,8 @@
                 <h5 class="card-title">{{ product.name }}</h5>
                 <p class="card-text">{{ product.description }}</p>
                 <p class="card-text"><strong>Цена: {{ product.price }} руб.</strong></p>
+                <p class="card-text">{{ product.image }}</p>
+                <img src="{{ product.image }}" class="rounded float-end" alt="Нет доступа к серверу">
                 <!-- <a href="#add_to_cart" class="btn btn-primary">Добавить в корзину</a> -->
                 <form action="{{ url_for('main.add_to_cart', product_id=product.id) }}" method="POST">
                     <button type="submit" class="btn btn-primary">Добавить в корзину</button>
