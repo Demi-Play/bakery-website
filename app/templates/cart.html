@@ -2,11 +2,11 @@
 
 {% block content %}
 <div class="container">
-    <h2 class="mt-5">Корзина</h2>
+    <h2 class="mt-5">Корзина, {{ user }}</h2>
     {% if cart and cart.items %}
     <ul class="list-group">
         {% for item in cart.items %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
+        <li class="list-group-item d-flex justify-content-between align-items-center" style="background-color: rgb(221, 221, 221);">
             {{ item.product.name }} - {{ item.quantity }} шт. - {{ item.product.price * item.quantity }} ₽
             <form method="POST" action="{{ url_for('main.remove_from_cart', product_id=item.product.id) }}">
                 <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
@@ -18,7 +18,7 @@
         <h4>Итоговая стоимость: {{ total_price }} ₽</h4>
     </div>
     <form method="POST" action="{{ url_for('main.checkout') }}">
-        <button type="submit" class="btn btn-success mt-3">Оформить заказ</button>
+        <button type="submit" class="btn btn-primary mt-3">Оформить заказ</button>
     </form>
     {% else %}
     <p>Ваша корзина пуста. Выберите что-либо</p>

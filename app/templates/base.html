@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/style.css">
     <title>Пекарня</title>
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="{{ url_for('main.index') }}">Пекарня</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">Пекарня Web-Bakery</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
@@ -21,29 +25,42 @@
                     <a class="nav-link" href="{{ url_for('main.cart') }}">Корзина</a>
                 </li>
                 {% if current_user.is_authenticated %}
-                    {% if current_user.role == 'admin' %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('main.admin_panel') }}">Панель администратора</a>
-                        </li>
-                    {% elif current_user.role == 'moderator' %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('main.moderator') }}">Панель модератора</a>
-                        </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.logout') }}">Выход</a>
-                    </li>
+                {% if current_user.role == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.admin_panel') }}">Панель администратора</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.orders') }}">Управление Заказами</a>
+                </li>
+                {% elif current_user.role == 'moderator' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.moderator') }}">Панель модератора</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.orders') }}">Управление Заказами</a>
+                </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.logout') }}">Выход</a>
+                </li>
                 {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.login') }}">Вход</a>
-                    </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.login') }}">Вход</a>
+                </li>
                 {% endif %}
             </ul>
         </div>
     </nav>
-    
+
     <div class="container mt-4">
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Подключение jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Подключение Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
 </body>
+
 </html>

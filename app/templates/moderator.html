@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Панель модератора</h1>
+<h1>Панель модератора {{moder}}</h1>
 <p>Здесь вы можете управлять товарами и категориями.</p>
 <h3>Товары</h3>
 <a href="{{ url_for('main.create_product') }}" class="btn btn-success">Добавить товар</a>

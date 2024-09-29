@@ -2,13 +2,21 @@
 
 {% block content %}
 <h1>Добро пожаловать в нашу пекарню!</h1>
+<form action="{{ url_for('main.search')}}" id="search-form" method="POST">
+    <input type="text" name="search" placeholder="Поиск товаров" id="search-input">
+    <select name="sort" id="sort-select">
+        <option value="name">По имени</option>
+        <option value="price">По цене</option>
+    </select>
+    <button type="submit">Поиск</button>
+</form>
 <p>Выберите из нашего ассортимента:</p>
 
 <div class="row">
     {% for product in products %}
     <div class="col-md-4">
         <div class="card mb-4">
-            <div class="card-body">
+            <div class="card-body" style="background-color: rgb(221, 221, 221);">
                 <h5 class="card-title">{{ product.name }}</h5>
                 <p class="card-text">{{ product.description }}</p>
                 <p class="card-text"><strong>Цена: {{ product.price }} руб.</strong></p>

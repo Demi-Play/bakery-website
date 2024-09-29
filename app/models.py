@@ -39,9 +39,13 @@ class Cart(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     items = db.relationship('CartItem', backref='cart', lazy=True)
 
+    def __repr__(self):
+        return f'<Cart id={self.id} user_id={self.user_id}>'
+
+
 class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    cart_id = db.Column(db.Integer, db.ForeignKey('cart.id'), nullable=False)
+    cart_id = db.Column(db.Integer, db.ForeignKey('cart.id'), nullable=True)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
 
@@ -54,13 +58,18 @@ class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    status = db.Column(db.String(20), default='pending')  # Статус: 'pending', 'paid', 'completed'
     items = db.relationship('PurchaseItem', backref='purchase', lazy=True)
+
+    def __repr__(self):
+        return f'<Purchase id={self.id} user_id={self.user_id} status={self.status}>'
 
 class PurchaseItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     purchase_id = db.Column(db.Integer, db.ForeignKey('purchase.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
+    cart_id = db.Column(db.Integer, db.ForeignKey('cart.id'), nullable=True)  # Добавлено поле cart_id
 
     def __repr__(self):
         return f'<PurchaseItem product_id={self.product_id} quantity={self.quantity}>'

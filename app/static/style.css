@@ -1,0 +1,34 @@
+.container {
+    /* background-image: url('./backery.jpg'); */
+    /* position: relative; */
+    z-index: 1;
+    /* overflow-x: hidden; */
+    background-size: cover;
+}
+
+.container:before {
+    z-index: -1;
+    position: absolute;
+    /* content: url('./backery.jpg'); */
+    opacity: 0.4;
+}
+
+body {
+    background-color: #c2c2c2;
+    /* color: aliceblue; */
+}
+
+.navbar {
+    background-color: #868686;
+}
+
+/* Применение медиа-запросов для адаптивности */
+@media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+    }
+
+    .hidden-mobile {
+        display: none;
+    }
+}

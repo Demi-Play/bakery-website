@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="container mt-5">
+        <h2>Список заказов</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID Заказа</th>
+                    <th>ID Пользо <br class="hidden-mobile"> вателя</th>
+                    <th>Дата</th>
+                    <th>Статус</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for purchase in purchases %}
+                    <tr>
+                        <td>{{ purchase.id }}</td>
+                        <td>{{ purchase.user_id }}</td>
+                        <td>{{ purchase.created_at }}</td>
+                        <td>{{ purchase.status }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('main.update_order_status', order_id=purchase.id) }}">
+                                <select name="status" class="form-control" style="background-color: rgb(221, 221, 221);">
+                                    <option value="pending" {% if purchase.status == 'pending' %}selected{% endif %}>Ожидает</option>
+                                    <option value="paid" {% if purchase.status == 'paid' %}selected{% endif %}>Оплачен</option>
+                                    <option value="completed" {% if purchase.status == 'completed' %}selected{% endif %}>Выполнен</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm mt-2">Обновить</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

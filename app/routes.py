@@ -2,15 +2,39 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db
-from .models import User, Product, Category, Cart, CartItem
+from .models import User, Product, Category, Cart, CartItem, Purchase, PurchaseItem
 from .forms import RegisterForm, LoginForm, ProductForm
 
 bp = Blueprint('main', __name__)
 
-@bp.route('/')
+@bp.route('/', methods=['GET', 'POST'])
 def index():
+    search_query = request.form.get('search', '')
+    sort_option = request.form.get('sort', 'name')
+
     products = Product.query.all()
+
+    if search_query:
+        products = [product for product in products if search_query.lower() in product.name.lower()]
+    
+    products.sort(key=lambda x: getattr(x, sort_option))
+    
     return render_template('index.html', products=products)
+
+@bp.route('/search', methods=['POST'])
+def search():
+    search_query = request.form.get('search', '')
+    sort_option = request.form.get('sort', 'name')
+    
+    products = Product.query.all()
+    
+    if search_query:
+        products = [product for product in products if search_query.lower() in product.name.lower()]
+    
+    products.sort(key=lambda x: getattr(x, sort_option))
+
+    return render_template('index.html', products=products)
+
 
 @bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -76,7 +100,7 @@ def cart():
         total_price = sum(item.product.price * item.quantity for item in cart.items)
     else:
         total_price = 0.0
-    return render_template('cart.html', cart=cart, total_price=total_price)
+    return render_template('cart.html', cart=cart, total_price=total_price, user=current_user.username)
 
 
 @bp.route('/add_to_cart/<int:product_id>', methods=['POST'])
@@ -142,16 +166,27 @@ def checkout():
         flash('Ваша корзина пуста.', 'danger')
         return redirect(url_for('main.cart'))
 
-    # Здесь можно добавить логику обработки оплаты (имитация)
-    # Например, фиксируем в базе данных покупку или просто очищаем корзину
+    # Создание нового заказа
+    purchase = Purchase(user_id=current_user.id, status='pending')
+    db.session.add(purchase)
+    db.session.commit()  # Сохраняем заказ, чтобы получить его id
     
-    # Удаление всех товаров из корзины
+    # Добавление элементов заказа
     for item in cart.items:
-        db.session.delete(item)
-    
+        purchase_item = PurchaseItem(purchase_id=purchase.id, product_id=item.product.id, quantity=item.quantity, cart_id=cart.id)  # Передаем cart_id
+        db.session.add(purchase_item)
+
+    # Сохранение всех изменений в базе данных
     db.session.commit()
-    flash('Спасибо за покупку! Ваш заказ был успешно оформлен.', 'success')
+
+    # Очистка корзины
+    db.session.delete(cart)
+    db.session.commit()
+
+    flash('Заказ успешно оформлен.', 'success')
     return redirect(url_for('main.index'))
+
+
 
 
 # Административная панель - основная страница
@@ -162,7 +197,7 @@ def admin_panel():
     users = User.query.all()
     products = Product.query.all()
     categories = Category.query.all()
-    return render_template('admin_panel.html', users=users, products=products, categories=categories)
+    return render_template('admin_panel.html', users=users, products=products, categories=categories, admin=current_user.username)
 
 @bp.route('/moderator')
 @login_required
@@ -170,7 +205,7 @@ def admin_panel():
 def moderator():
     products = Product.query.all()
     categories = Category.query.all()
-    return render_template('moderator.html', products=products, categories=categories)
+    return render_template('moderator.html', products=products, categories=categories, moder=current_user.username)
 
 
 @bp.route('/admin/change_role/<int:user_id>', methods=['GET', 'POST'])
@@ -205,7 +240,7 @@ def change_role(user_id):
 def delete_user(user_id):
     if not current_user.role == 'admin':
         flash('У вас нет прав для выполнения этого действия.', 'danger')
-        return redirect(url_for('main.home'))
+        return redirect(url_for('main.index'))
 
     user = User.query.get(user_id)
     if user:
@@ -326,3 +361,27 @@ def delete_category(category_id):
         return redirect(url_for('main.admin_panel'))
     if current_user.role == 'moderator':
         return redirect(url_for('main.moderator'))
+    
+
+@bp.route('/orders')
+@login_required
+@moder_required
+def orders():
+    purchases = Purchase.query.all()  # Получаем все заказы
+    return render_template('orders.html', purchases=purchases)
+
+@bp.route('/update_order_status/<int:order_id>', methods=['POST'])
+@moder_required
+@login_required
+def update_order_status(order_id):
+    purchase = Purchase.query.get(order_id)
+    if not purchase:
+        flash('Заказ не найден.', 'danger')
+        return redirect(url_for('main.orders'))
+
+    new_status = request.form.get('status')
+    purchase.status = new_status
+    db.session.commit()
+    flash(f'Статус заказа {order_id} успешно изменен на {new_status}.', 'success')
+
+    return redirect(url_for('main.orders'))
