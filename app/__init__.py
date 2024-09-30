@@ -1,22 +1,25 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from flask_login import LoginManager
 import os
+import mysql.connector
 
-db = SQLAlchemy()
-migrate = Migrate()
 login_manager = LoginManager()  # Инициализация LoginManager
+
+def get_db_connection():
+        return mysql.connector.connect(
+            host='sql.freedb.tech',
+            user=os.environ.get('DB_USER', 'freedb_d33mm11'),
+            password=os.environ.get('DB_PASSWORD', 'TaTp%PDSNE5ZEFd'),
+            database=os.environ.get('DB_NAME', 'freedb_bakery')
+        )
 
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'supedawrseddacreweqtkey'
-    # Используем переменную окружения для определения режима базы данных
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///bakery.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    db.init_app(app)
-    migrate.init_app(app, db)
+    # Создайте подключение к MySQL базе данных
+    
+
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
@@ -25,16 +28,24 @@ def create_app():
     login_manager.login_message_category = "warning"
 
     # Импорт моделей после инициализации базы данных и приложения
-    from .models import User, Product, Category
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM User WHERE id = %s", (user_id,))
+        user_data = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        if user_data:
+            return user_data  # Предполагается, что User принимает данные в конструкторе
+        return None
+
 
     # Регистрация маршрутов
     from . import routes
     app.register_blueprint(routes.bp)
-    with app.app_context():
-        db.create_all()
+
 
     return app

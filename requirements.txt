@@ -4,3 +4,4 @@ Flask-Migrate
 Flask-WTF
 email_validator
 flask_login
+mysql-connector-python

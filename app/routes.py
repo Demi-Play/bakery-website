@@ -1,8 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from . import db
-from .models import User, Product, Category, Cart, CartItem, Purchase, PurchaseItem
+from . import get_db_connection
 from .forms import RegisterForm, LoginForm, ProductForm
 
 bp = Blueprint('main', __name__)
@@ -12,26 +11,42 @@ def index():
     search_query = request.form.get('search', '')
     sort_option = request.form.get('sort', 'name')
 
-    products = Product.query.all()
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Product")
+    products = cursor.fetchall()
+    cursor.close()
+    connection.close()
 
     if search_query:
-        products = [product for product in products if search_query.lower() in product.name.lower()]
+        products = [product for product in products if search_query.lower() in product['name'].lower()]
     
-    products.sort(key=lambda x: getattr(x, sort_option))
-    
+    products.sort(key=lambda x: x[sort_option])
+
     return render_template('index.html', products=products)
 
 @bp.route('/search', methods=['POST'])
 def search():
     search_query = request.form.get('search', '')
     sort_option = request.form.get('sort', 'name')
-    
-    products = Product.query.all()
-    
-    if search_query:
-        products = [product for product in products if search_query.lower() in product.name.lower()]
-    
-    products.sort(key=lambda x: getattr(x, sort_option))
+
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT * FROM Product")
+        products = cursor.fetchall()
+
+        if search_query:
+            products = [product for product in products if search_query.lower() in product['name'].lower()]
+
+        products.sort(key=lambda x: x[sort_option])
+    except Exception as e:
+        print(f"Ошибка при выполнении запроса: {e}")
+        products = []
+    finally:
+        cursor.close()
+        connection.close()
 
     return render_template('index.html', products=products)
 
@@ -44,16 +59,21 @@ def register():
         email = form.email.data
         password = form.password.data
 
-        user = User(username=username, email=email, password=generate_password_hash(password))
-        db.session.add(user)
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            print(f"Ошибка при записи в БД: {e}")
+        connection = get_db_connection()
+        cursor = connection.cursor()
 
-        flash('Регистрация успешна. Войдите в свою учетную запись.')
-        return redirect(url_for('main.login'))
+        try:
+            cursor.execute("INSERT INTO User (username, email, password) VALUES (%s, %s, %s)", 
+                           (username, email, generate_password_hash(password)))
+            connection.commit()
+            flash('Регистрация успешна. Войдите в свою учетную запись.')
+            return redirect(url_for('main.login'))
+        except Exception as e:
+            connection.rollback()
+            print(f"Ошибка при записи в БД: {e}")
+        finally:
+            cursor.close()
+            connection.close()
     else:
         print(form.errors)
 
@@ -62,24 +82,24 @@ def register():
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
-    if form.validate_on_submit():
+    if request.method == 'POST':
         email = form.email.data
         password = form.password.data
 
-        user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
-            login_successful = login_user(user)
-            if login_successful:
-                flash('Вы успешно вошли в систему.', 'success')
-                return redirect(url_for('main.index'))
-            else:
-                flash('Ошибка авторизации.', 'danger')
-                return redirect(url_for('main.cart'))
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM User WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        cursor.close()
+        connection.close()
+
+        if user and check_password_hash(user['password'], password):
+            login_user(user)
+            flash('Вы успешно вошли в систему.', 'success')
+            return redirect(url_for('main.index'))
         else:
             flash('Неправильное имя пользователя или пароль.', 'danger')
-    return render_template('login.html', form=form)
-
-
+    return render_template('login.html')
 
 @bp.route('/logout')
 @login_required
@@ -89,57 +109,85 @@ def logout():
 
 @bp.route('/product/<int:product_id>')
 def product_detail(product_id):
-    product = Product.query.get_or_404(product_id)
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Product WHERE id = %s", (product_id,))
+    product = cursor.fetchone()
+    cursor.close()
+    connection.close()
     return render_template('product_detail.html', product=product)
 
 @bp.route('/cart')
 @login_required
 def cart():
-    cart = Cart.query.filter_by(user_id=current_user.id).first()
-    if cart and cart.items:
-        total_price = sum(item.product.price * item.quantity for item in cart.items)
-    else:
-        total_price = 0.0
-    return render_template('cart.html', cart=cart, total_price=total_price, user=current_user.username)
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Cart WHERE user_id = %s", (current_user.id,))
+    cart = cursor.fetchone()
+    cursor.close()
+    connection.close()
 
+    total_price = 0.0
+    if cart and cart['items']:
+        total_price = sum(item['price'] * item['quantity'] for item in cart['items'])
+    
+    return render_template('cart.html', cart=cart, total_price=total_price, user=current_user.username)
 
 @bp.route('/add_to_cart/<int:product_id>', methods=['POST'])
 @login_required
 def add_to_cart(product_id):
-    cart = Cart.query.filter_by(user_id=current_user.id).first()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute("SELECT * FROM Cart WHERE user_id = %s", (current_user.id,))
+    cart = cursor.fetchone()
+    
     if not cart:
-        cart = Cart(user_id=current_user.id)
-        db.session.add(cart)
-        db.session.commit()
-
-    cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
-    if cart_item:
-        cart_item.quantity += 1
+        cursor.execute("INSERT INTO Cart (user_id) VALUES (%s)", (current_user.id,))
+        connection.commit()
+        cart_id = cursor.lastrowid
     else:
-        cart_item = CartItem(cart_id=cart.id, product_id=product_id, quantity=1)
-        db.session.add(cart_item)
+        cart_id = cart['id']
 
-    db.session.commit()
+    cursor.execute("SELECT * FROM CartItem WHERE cart_id = %s AND product_id = %s", (cart_id, product_id))
+    cart_item = cursor.fetchone()
+    
+    if cart_item:
+        cursor.execute("UPDATE CartItem SET quantity = quantity + 1 WHERE id = %s", (cart_item['id'],))
+    else:
+        cursor.execute("INSERT INTO CartItem (cart_id, product_id, quantity) VALUES (%s, %s, %s)", (cart_id, product_id, 1))
+
+    connection.commit()
+    cursor.close()
+    connection.close()
     flash('Товар добавлен в корзину.')
     return redirect(url_for('main.index'))
 
 @bp.route('/remove_from_cart/<int:product_id>', methods=['POST'])
 @login_required
 def remove_from_cart(product_id):
-    cart = Cart.query.filter_by(user_id=current_user.id).first()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute("SELECT * FROM Cart WHERE user_id = %s", (current_user.id,))
+    cart = cursor.fetchone()
+    
     if not cart:
         flash('Корзина не найдена.', 'danger')
         return redirect(url_for('main.cart'))
 
-    # Поиск товара в корзине
-    item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
+    cursor.execute("SELECT * FROM CartItem WHERE cart_id = %s AND product_id = %s", (cart['id'], product_id))
+    item = cursor.fetchone()
+    
     if item:
-        db.session.delete(item)
-        db.session.commit()
+        cursor.execute("DELETE FROM CartItem WHERE id = %s", (item['id'],))
+        connection.commit()
         flash('Товар удален из корзины.', 'success')
     else:
         flash('Товар не найден в корзине.', 'danger')
 
+    cursor.close()
+    connection.close()
     return redirect(url_for('main.cart'))
 
 def admin_required(func):
@@ -161,52 +209,74 @@ def moder_required(func):
 @bp.route('/checkout', methods=['POST'])
 @login_required
 def checkout():
-    cart = Cart.query.filter_by(user_id=current_user.id).first()
-    if not cart or not cart.items:
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM Cart WHERE user_id = %s", (current_user.id,))
+    cart = cursor.fetchone()
+    
+    if not cart or not cart['items']:
         flash('Ваша корзина пуста.', 'danger')
         return redirect(url_for('main.cart'))
 
     # Создание нового заказа
-    purchase = Purchase(user_id=current_user.id, status='pending')
-    db.session.add(purchase)
-    db.session.commit()  # Сохраняем заказ, чтобы получить его id
+    cursor.execute("INSERT INTO Purchase (user_id, status) VALUES (%s, %s) RETURNING id", (current_user.id, 'pending'))
+    purchase_id = cursor.fetchone()['id']
     
     # Добавление элементов заказа
-    for item in cart.items:
-        purchase_item = PurchaseItem(purchase_id=purchase.id, product_id=item.product.id, quantity=item.quantity, cart_id=cart.id)  # Передаем cart_id
-        db.session.add(purchase_item)
-
-    # Сохранение всех изменений в базе данных
-    db.session.commit()
+    for item in cart['items']:
+        cursor.execute("INSERT INTO PurchaseItem (purchase_id, product_id, quantity, cart_id) VALUES (%s, %s, %s, %s)", 
+                       (purchase_id, item['product_id'], item['quantity'], cart['id']))
 
     # Очистка корзины
-    db.session.delete(cart)
-    db.session.commit()
+    cursor.execute("DELETE FROM Cart WHERE id = %s", (cart['id'],))
+
+    connection.commit()
+    cursor.close()
+    connection.close()
 
     flash('Заказ успешно оформлен.', 'success')
     return redirect(url_for('main.index'))
-
-
-
 
 # Административная панель - основная страница
 @bp.route('/admin')
 @login_required
 @admin_required
 def admin_panel():
-    users = User.query.all()
-    products = Product.query.all()
-    categories = Category.query.all()
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM User")
+    users = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM Product")
+    products = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM Category")
+    categories = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
     return render_template('admin_panel.html', users=users, products=products, categories=categories, admin=current_user.username)
 
 @bp.route('/moderator')
 @login_required
 @moder_required
 def moderator():
-    products = Product.query.all()
-    categories = Category.query.all()
-    return render_template('moderator.html', products=products, categories=categories, moder=current_user.username)
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
 
+    cursor.execute("SELECT * FROM Product")
+    products = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM Category")
+    categories = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return render_template('moderator.html', products=products, categories=categories, moder=current_user.username)
 
 @bp.route('/admin/change_role/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -216,22 +286,32 @@ def change_role(user_id):
         flash('У вас нет прав для выполнения этого действия.', 'danger')
         return redirect(url_for('main.index'))
 
-    user = User.query.get(user_id)
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM User WHERE id = %s", (user_id,))
+    user = cursor.fetchone()
+
     if not user:
         flash('Пользователь не найден.', 'danger')
+        cursor.close()
+        connection.close()
         return redirect(url_for('main.admin_panel'))
 
     if request.method == 'POST':
         new_role = request.form.get('role')
         if new_role in ['user', 'moderator', 'admin']:
-            user.role = new_role
-            db.session.commit()
-            flash(f'Роль пользователя {user.username} успешно изменена на {new_role}.', 'success')
+            cursor.execute("UPDATE User SET role = %s WHERE id = %s", (new_role, user_id))
+            connection.commit()
+            flash(f'Роль пользователя {user["username"]} успешно изменена на {new_role}.', 'success')
         else:
             flash('Недопустимая роль.', 'danger')
 
+        cursor.close()
+        connection.close()
         return redirect(url_for('main.admin_panel'))
 
+    cursor.close()
+    connection.close()
     return render_template('change_role.html', user=user)
 
 
@@ -242,50 +322,54 @@ def delete_user(user_id):
         flash('У вас нет прав для выполнения этого действия.', 'danger')
         return redirect(url_for('main.index'))
 
-    user = User.query.get(user_id)
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM User WHERE id = %s", (user_id,))
+    user = cursor.fetchone()
+
     if user:
-        db.session.delete(user)
-        db.session.commit()
-        flash(f'Пользователь {user.username} был успешно удален.', 'success')
+        cursor.execute("DELETE FROM User WHERE id = %s", (user_id,))
+        connection.commit()
+        flash(f'Пользователь {user["username"]} был успешно удален.', 'success')
     else:
         flash('Пользователь не найден.', 'danger')
 
+    cursor.close()
+    connection.close()
     return redirect(url_for('admin'))
 
-# import shutil
-# import os
 
-# Создание товара
 @bp.route('/admin/product/create', methods=['GET', 'POST'])
 @login_required
 @moder_required
 def create_product():
     form = ProductForm()
-    if form.validate_on_submit():
+    if request.method == 'POST':
         name = form.name.data
         description = form.description.data
         price = form.price.data
         image = form.image.data
-        category_id = request.form.get('category_id')
+        category_id = form.category_id.data
 
-        # Сохранение изображения
-        # if image:
-        #     image_filename = os.path.basename(image)
-        #     image_path = os.path.join('media', image_filename)
-        #     shutil.copy(image, image_path)
-        #     image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
-
-        product = Product(name=name, description=description, price=price, image_path=image, category_id=category_id)
-        db.session.add(product)
-        db.session.commit()
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("INSERT INTO Product (name, description, price, image_path, category_id) VALUES (%s, %s, %s, %s, %s)",
+                       (name, description, price, image, category_id))
+        connection.commit()
         flash('Товар успешно создан.')
-        if current_user.role == 'admin':
-            return redirect(url_for('main.admin_panel'))
-        if current_user.role == 'moderator':
-            return redirect(url_for('main.moderator'))
 
-    categories = Category.query.all()
-    return render_template('create_product.html', form=form, categories=categories)
+        cursor.close()
+        connection.close()
+        return redirect(url_for('main.admin_panel' if current_user.role == 'admin' else 'main.moderator'))
+
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Category")
+    categories = cursor.fetchall()
+    cursor.close()
+    connection.close()
+
+    return render_template('create_product.html', categories=categories)
 
 
 # Редактирование товара
@@ -293,42 +377,54 @@ def create_product():
 @login_required
 @moder_required
 def edit_product(product_id):
-    product = Product.query.get_or_404(product_id)
-    form = ProductForm(obj=product)
-    if form.validate_on_submit():
-        product.name = form.name.data
-        product.description = form.description.data
-        product.price = form.price.data
-        product.image_path = form.image.data
-        product.category_id = request.form.get('category_id')
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    form = ProductForm()
+    if request.method == 'POST':
+        name = form.name.data
+        description = form.description.data
+        price = form.price.data
+        image_path = form.image.data
+        category_id = form.category_id.data
 
-        # # Сохранение изображения
-        # if product.image:
-        #     image_filename = os.path.basename(product.image)
-        #     image_path = os.path.join('media', image_filename)
-        #     shutil.copy(product.image, image_path)
-        #     image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
-        # product.image = image_db_path
-
-        db.session.commit()
+        cursor.execute("""
+            UPDATE Product 
+            SET name = %s, description = %s, price = %s, image_path = %s, category_id = %s 
+            WHERE id = %s
+        """, (name, description, price, image_path, category_id, product_id))
+        connection.commit()
         flash('Товар успешно обновлен.')
+
         if current_user.role == 'admin':
             return redirect(url_for('main.admin_panel'))
         if current_user.role == 'moderator':
             return redirect(url_for('main.moderator'))
 
-    categories = Category.query.all()
-    return render_template('edit_product.html', form=form, product=product, categories=categories)
+    cursor.execute("SELECT * FROM Product WHERE id = %s", (product_id,))
+    product = cursor.fetchone()
+    cursor.execute("SELECT * FROM Category")
+    categories = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return render_template('edit_product.html', product=product, categories=categories)
 
 # Удаление товара
 @bp.route('/admin/product/<int:product_id>/delete', methods=['POST'])
 @login_required
 @moder_required
 def delete_product(product_id):
-    product = Product.query.get_or_404(product_id)
-    db.session.delete(product)
-    db.session.commit()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM Product WHERE id = %s", (product_id,))
+    connection.commit()
     flash('Товар удален.')
+
+    cursor.close()
+    connection.close()
+
     if current_user.role == 'admin':
         return redirect(url_for('main.admin_panel'))
     if current_user.role == 'moderator':
@@ -339,17 +435,25 @@ def delete_product(product_id):
 @login_required
 @moder_required
 def create_category():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
     if request.method == 'POST':
         name = request.form['name']
-        category = Category(name=name)
-        db.session.add(category)
-        db.session.commit()
+        cursor.execute("INSERT INTO Category (name) VALUES (%s)", (name,))
+        connection.commit()
         flash('Категория успешно создана.')
+
+        cursor.close()
+        connection.close()
+
         if current_user.role == 'admin':
             return redirect(url_for('main.admin_panel'))
         if current_user.role == 'moderator':
             return redirect(url_for('main.moderator'))
 
+    cursor.close()
+    connection.close()
     return render_template('create_category.html')
 
 # Редактирование категории
@@ -357,16 +461,28 @@ def create_category():
 @login_required
 @moder_required
 def edit_category(category_id):
-    category = Category.query.get_or_404(category_id)
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
     if request.method == 'POST':
-        category.name = request.form['name']
-        db.session.commit()
+        name = request.form['name']
+        cursor.execute("UPDATE Category SET name = %s WHERE id = %s", (name, category_id))
+        connection.commit()
         flash('Категория успешно обновлена.')
+
+        cursor.close()
+        connection.close()
+
         if current_user.role == 'admin':
             return redirect(url_for('main.admin_panel'))
         if current_user.role == 'moderator':
             return redirect(url_for('main.moderator'))
 
+    cursor.execute("SELECT * FROM Category WHERE id = %s", (category_id,))
+    category = cursor.fetchone()
+
+    cursor.close()
+    connection.close()
     return render_template('edit_category.html', category=category)
 
 # Удаление категории
@@ -374,35 +490,53 @@ def edit_category(category_id):
 @login_required
 @moder_required
 def delete_category(category_id):
-    category = Category.query.get_or_404(category_id)
-    db.session.delete(category)
-    db.session.commit()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM Category WHERE id = %s", (category_id,))
+    connection.commit()
+    cursor.close()
+    connection.close()
+    
     flash('Категория удалена.')
     if current_user.role == 'admin':
         return redirect(url_for('main.admin_panel'))
     if current_user.role == 'moderator':
         return redirect(url_for('main.moderator'))
-    
 
 @bp.route('/orders')
 @login_required
 @moder_required
 def orders():
-    purchases = Purchase.query.all()  # Получаем все заказы
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Purchase")
+    purchases = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    
     return render_template('orders.html', purchases=purchases)
 
 @bp.route('/update_order_status/<int:order_id>', methods=['POST'])
 @moder_required
 @login_required
 def update_order_status(order_id):
-    purchase = Purchase.query.get(order_id)
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute("SELECT * FROM Purchase WHERE id = %s", (order_id,))
+    purchase = cursor.fetchone()
+    
     if not purchase:
         flash('Заказ не найден.', 'danger')
+        cursor.close()
+        connection.close()
         return redirect(url_for('main.orders'))
 
     new_status = request.form.get('status')
-    purchase.status = new_status
-    db.session.commit()
+    cursor.execute("UPDATE Purchase SET status = %s WHERE id = %s", (new_status, order_id))
+    connection.commit()
+    cursor.close()
+    connection.close()
+    
     flash(f'Статус заказа {order_id} успешно изменен на {new_status}.', 'success')
-
     return redirect(url_for('main.orders'))
