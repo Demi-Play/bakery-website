@@ -17,5 +17,5 @@ class ProductForm(FlaskForm):
     name = StringField('Название', validators=[DataRequired()])
     description = TextAreaField('Описание', validators=[DataRequired()])
     price = FloatField('Цена', validators=[DataRequired()])
-    image = FileField('Изображение')
+    image = StringField('Изображение')
     submit = SubmitField('Сохранить')

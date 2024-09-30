@@ -11,6 +11,7 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'supedawrseddacreweqtkey'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bakery.db'
+    # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/bakery.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -32,7 +33,7 @@ def create_app():
     # Регистрация маршрутов
     from . import routes
     app.register_blueprint(routes.bp)
-    # with app.app_context():
-    #     db.create_all()
+    with app.app_context():
+        db.create_all()
 
     return app

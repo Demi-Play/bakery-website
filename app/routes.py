@@ -252,8 +252,8 @@ def delete_user(user_id):
 
     return redirect(url_for('admin'))
 
-import shutil
-import os
+# import shutil
+# import os
 
 # Создание товара
 @bp.route('/admin/product/create', methods=['GET', 'POST'])
@@ -299,16 +299,16 @@ def edit_product(product_id):
         product.name = form.name.data
         product.description = form.description.data
         product.price = form.price.data
-        product.image = form.image.data
+        product.image_path = form.image.data
         product.category_id = request.form.get('category_id')
 
-        # Сохранение изображения
-        if product.image:
-            image_filename = os.path.basename(product.image)
-            image_path = os.path.join('media', image_filename)
-            shutil.copy(product.image, image_path)
-            image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
-        product.image = image_db_path
+        # # Сохранение изображения
+        # if product.image:
+        #     image_filename = os.path.basename(product.image)
+        #     image_path = os.path.join('media', image_filename)
+        #     shutil.copy(product.image, image_path)
+        #     image_db_path = os.path.join('media', image_filename)  # Путь для базы данных
+        # product.image = image_db_path
 
         db.session.commit()
         flash('Товар успешно обновлен.')
