@@ -2,6 +2,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+import os
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -10,8 +11,8 @@ login_manager = LoginManager()  # Инициализация LoginManager
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'supedawrseddacreweqtkey'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bakery.db'
-    # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/bakery.db'
+    # Используем переменную окружения для определения режима базы данных
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///bakery.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
